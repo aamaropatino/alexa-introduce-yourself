@@ -8,7 +8,6 @@ const Alexa = require('ask-sdk-core');
 const AWS = require('aws-sdk');
 const ddbAdapter = require('ask-sdk-dynamodb-persistence-adapter');
 
-
 const LaunchRequestHandler = {
     canHandle(handlerInput) {
         return Alexa.getRequestType(handlerInput.requestEnvelope) === 'LaunchRequest';
@@ -34,17 +33,39 @@ const LaunchRequestHandler = {
     const upsServiceClient = serviceClientFactory.getUpsServiceClient();
     const email = await upsServiceClient.getProfileEmail();
     var name = await upsServiceClient.getProfileName();
+    
+     var userTimeZone, greeting;
+
+    // wrap the API call in a try/catch block in case the call fails for
+    // whatever reason.
+    try {
+        userTimeZone = await upsServiceClient.getSystemTimeZone(deviceId);
+    } catch (error) {
+        userTimeZone = "error";
+        console.log('error', error.message);
+    }
+    if(userTimeZone === "error"){
+        var currentDateTime = 0;
+        var currentDate = 0;
+        var currentYear = 0;
+    }
+    else {
+        // getting the current date with the time
+        currentDateTime = new Date(new Date().toLocaleString("en-UK", {timeZone: userTimeZone}));
+    }
 
     const sessionAttributes = handlerInput.attributesManager.getSessionAttributes();
         
     var speakOutput = `Hi, I'm Alexa, I'm an intelligent voice assistant and I can do many things. I can play music, tell jokes, and even read the news! I listen out for my name and can respond to it.
     If you interact with me, I may record what you say.`;
-
+    
     // Increase the number of visits of the user
     // Save name and email as sessionAttributes
     sessionAttributes.visits += 1;
     sessionAttributes.name = name;
     sessionAttributes.email = email;
+    sessionAttributes.lastVisit = `${currentDateTime}`;
+    sessionAttributes.allVisits += `, ${currentDateTime}`;
     
     handlerInput.attributesManager.setSessionAttributes(sessionAttributes);
         
@@ -113,6 +134,9 @@ const LoadDataInterceptor = {
         sessionAttributes.name = (persistent.hasOwnProperty('name')) ? persistent.name : '';
         sessionAttributes.email = (persistent.hasOwnProperty('email')) ? persistent.email : '';
         sessionAttributes.visits = (persistent.hasOwnProperty('visits')) ? persistent.visits : 0;
+        sessionAttributes.lastVisit = (persistent.hasOwnProperty('lastVisit')) ? persistent.lastVisit : '';
+        sessionAttributes.allVisits =  (persistent.hasOwnProperty('allVisits')) ?persistent.allVisits : '';
+
 
         //set the session attributes so they're available to your handlers
         handlerInput.attributesManager.setSessionAttributes(sessionAttributes);
@@ -136,6 +160,9 @@ const SaveDataInterceptor = {
         persistent.visits = sessionAttributes.visits;
         persistent.name = sessionAttributes.name;
         persistent.email = sessionAttributes.email;
+        persistent.lastVisit = sessionAttributes.lastVisit;
+        persistent.allVisits = sessionAttributes.allVisits;
+
 
         // set and then save the persistent attributes
         handlerInput.attributesManager.setPersistentAttributes(persistent);
